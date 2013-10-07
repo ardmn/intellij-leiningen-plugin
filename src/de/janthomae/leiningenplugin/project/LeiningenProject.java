@@ -5,9 +5,9 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import de.janthomae.leiningenplugin.leiningen.LeiningenAPI;
 import de.janthomae.leiningenplugin.module.ModuleCreationUtils;
 import de.janthomae.leiningenplugin.utils.ClassPathUtils;
+import de.janthomae.leiningenplugin.utils.Interop;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -45,7 +45,7 @@ public class LeiningenProject {
 
     public static String[] nameAndVersionFromProjectFile(VirtualFile projectFile) {
         ClassPathUtils.getInstance().switchToPluginClassLoader();
-        Map map = LeiningenAPI.loadProject(projectFile.getPath());
+        Map map = Interop.loadProject(projectFile.getPath());
         return new String[]{(String) map.get(ModuleCreationUtils.LEIN_PROJECT_NAME),
                 (String) map.get(ModuleCreationUtils.LEIN_PROJECT_VERSION)};
     }
