@@ -70,21 +70,25 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
         return !leiningenProjects.isEmpty();
     }
 
-    public List<Module> importLeiningenProject(VirtualFile projectFile, Project project) {
+    public List<Module> importLeiningenProject(final VirtualFile projectFile, final Project project) {
         List<Module> result = new ArrayList<Module>();
-        LeiningenProject leiningenProject = null;
 
-        try {
-            leiningenProject = LeiningenProject.create(projectFile);
-            /** Side effect - adds to the project's module list */
-            leiningenProject.reimport(project);
+        LeiningenUtil.runInBackground(project, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    LeiningenProject leiningenProject = LeiningenProject.create(projectFile);
+                    /** Side effect - adds to the project's module list */
+                    leiningenProject.reimport(project);
 
-            if ( !hasProject( leiningenProject) ) {
-                addLeiningenProject(leiningenProject);
+                    if (!hasProject(leiningenProject)) {
+                        addLeiningenProject(leiningenProject);
+                    }
+                } catch (LeiningenProjectException ignore) {
+                    // Just do nothing for now
+                }
             }
-        } catch (LeiningenProjectException e) {
-            // Just do nothing for now
-        }
+        });
 
         return result;
     }
@@ -159,14 +163,19 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
         }
         LeiningenUtil.runWhenInitialized(myProject, new Runnable() {
             public void run() {
-                for (LeiningenProject leiningenProject : result) {
-                    try {
-                        leiningenProject.reimport(myProject);
-                    } catch (LeiningenProjectException e) {
-                        // Do nothing for now
+                LeiningenUtil.runInBackground(myProject, new Runnable() {
+                    @Override
+                    public void run() {
+                        for (LeiningenProject leiningenProject : result) {
+                            try {
+                                leiningenProject.reimport(myProject);
+                            } catch (LeiningenProjectException ignore) {
+                                // Do nothing for now
+                            }
+                            addLeiningenProject(leiningenProject);
+                        }
                     }
-                    addLeiningenProject(leiningenProject);
-                }
+                });
             }
         });
     }

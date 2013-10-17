@@ -1,14 +1,10 @@
 package de.janthomae.leiningenplugin.project;
 
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import de.janthomae.leiningenplugin.module.ModuleCreationUtils;
 import de.janthomae.leiningenplugin.utils.ClassPathUtils;
 import de.janthomae.leiningenplugin.utils.Interop;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 
@@ -69,39 +65,20 @@ public class LeiningenProject {
      * Re-import the leiningen project.
      * <p/>
      * This will refresh the leiningen module associated with this project.
+     * This should be run in the background - caller's responsibility.
      *
      * @param ideaProject The idea project
      * @throws LeiningenProjectException
      */
     public void reimport(final Project ideaProject) throws LeiningenProjectException {
+        //Reload the lein project file
+        ModuleCreationUtils mcu = new ModuleCreationUtils();
 
-        // This puts the downloading and refreshing on a background queue.  Now that lein can download
-        // dependencies it will lock the UI unless it's put on a background thread.
-        // This makes it so the ui is responsive, however we need to put some sort of feedback to the user
-        // so that he knows when it's complete - like the Maven plugin does.
+        //Update the module - eventually we can have multiple modules here that the project maintains.
+        Map result = mcu.importModule(ideaProject, leinProjectFile);
 
-        ApplicationManager.getApplication().invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new Task.Backgroundable(ideaProject, "Synchronizing Leiningen project", false) {
-                    @Override
-                    public void run(@NotNull ProgressIndicator indicator) {
-                        indicator.setIndeterminate(true);
-                        //Reload the lein project file
-                        ModuleCreationUtils mcu = new ModuleCreationUtils();
-
-                        //Update the module - eventually we can have multiple modules here that the project maintains.
-                        Map result = mcu.importModule(ideaProject, leinProjectFile);
-
-                        name = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_NAME);
-                        namespace = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_GROUP);
-                        version = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_VERSION);
-                    }
-                }.queue();
-            }
-        }, ideaProject.getDisposed());
-        // the second parameter makes sure that the task will not be executed if the project is disposed in the mean
-        // time. this can happen if the user closes the project quickly after re-opening it.
-
+        name = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_NAME);
+        namespace = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_GROUP);
+        version = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_VERSION);
     }
 }
