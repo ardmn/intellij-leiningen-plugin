@@ -4,6 +4,7 @@ import com.intellij.ProjectTopics;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModuleRootEvent;
 import com.intellij.openapi.roots.ModuleRootListener;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileCreateEvent;
@@ -31,6 +32,7 @@ public class LeiningenProjectsManagerWatcher {
                 1000,
                 false,
                 MergingUpdateQueue.ANY_COMPONENT);
+        Disposer.register(project, myQueue);
     }
 
     public synchronized void start() {

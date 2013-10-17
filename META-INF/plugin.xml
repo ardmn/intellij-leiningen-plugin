@@ -95,6 +95,9 @@
     <depends>org.intellij.clojure</depends>
 
     <application-components>
+        <component>
+            <implementation-class>de.janthomae.leiningenplugin.utils.Interop</implementation-class>
+        </component>
     </application-components>
 
     <project-components>

@@ -1,7 +1,7 @@
-(ns de.janthomae.leiningenplugin.leiningen.LeinigenAPITest
+(ns de.janthomae.leiningenplugin.leiningen.InteropTest
   "Test the LeiningenAPI functions"
   (:use midje.sweet
-        de.janthomae.leiningenplugin.leiningen.LeiningenAPI)
+        de.janthomae.leiningenplugin.leiningen)
   (:require [leiningen.core.project :as p]
             [leiningen.core.classpath :as cp]))
 
