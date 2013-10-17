@@ -4,6 +4,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.project.Project;
+import de.janthomae.leiningenplugin.LeiningenUtil;
 import de.janthomae.leiningenplugin.project.LeiningenProject;
 import de.janthomae.leiningenplugin.project.LeiningenProjectException;
 import de.janthomae.leiningenplugin.project.LeiningenProjectsManager;
@@ -22,12 +23,17 @@ public class RefreshProjectsAction extends AnAction {
                 LeiningenProjectsManager.getInstance(theProject);
 
         final List<LeiningenProject> projects = manager.getLeiningenProjects();
-        for (LeiningenProject project : projects) {
-            try {
-                project.reimport(theProject);
-            } catch (LeiningenProjectException e1) {
-                // Just ignore it for now
+        LeiningenUtil.runInBackground(theProject, new Runnable() {
+            @Override
+            public void run() {
+                for (LeiningenProject project : projects) {
+                    try {
+                        project.reimport(theProject);
+                    } catch (LeiningenProjectException ignore) {
+                        // Just ignore it for now
+                    }
+                }
             }
-        }
+        });
     }
 }
