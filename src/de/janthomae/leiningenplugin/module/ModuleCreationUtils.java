@@ -17,8 +17,8 @@ import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.*;
-import de.janthomae.leiningenplugin.leiningen.LeiningenAPI;
 import de.janthomae.leiningenplugin.utils.ClassPathUtils;
+import de.janthomae.leiningenplugin.utils.Interop;
 
 import java.io.File;
 import java.io.IOException;
@@ -286,7 +286,7 @@ public class ModuleCreationUtils {
     public Map importModule(Project ideaProject, VirtualFile leinProjectFile) {
 
         ClassPathUtils.getInstance().switchToPluginClassLoader();
-        Map projectMap = LeiningenAPI.loadProject(leinProjectFile.getPath());
+        Map projectMap = Interop.loadProject(leinProjectFile.getPath());
         String name = (String) projectMap.get(LEIN_PROJECT_NAME);
 
         final ModifiableModuleModel moduleManager = createModuleManager(ideaProject);
@@ -303,7 +303,7 @@ public class ModuleCreationUtils {
         final LibraryTable.ModifiableModel projectLibraries = ProjectLibraryTable.getInstance(ideaProject).getModifiableModel();
 
         //Load all the dependencies from the project file
-        List dependencyMaps = LeiningenAPI.loadDependencies(leinProjectFile.getCanonicalPath());
+        List dependencyMaps = Interop.loadDependencies(leinProjectFile.getCanonicalPath());
         final List<LibraryInfo> dependencies = initializeDependencies(module, projectLibraries,dependencyMaps);
 
         new WriteAction() {

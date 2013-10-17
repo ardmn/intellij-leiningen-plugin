@@ -1,7 +1,7 @@
 package de.janthomae.leiningenplugin.module.model;
 
-import de.janthomae.leiningenplugin.leiningen.LeiningenAPI;
 import de.janthomae.leiningenplugin.utils.ClassPathUtils;
+import de.janthomae.leiningenplugin.utils.Interop;
 
 import java.util.Map;
 
@@ -30,7 +30,7 @@ public class ModuleInformationUtils {
      */
     public ModuleInformation fromProjectFile(String path) {
         ClassPathUtils.getInstance().switchToPluginClassLoader();
-        Map projectMap = LeiningenAPI.loadProject(path);
+        Map projectMap = Interop.loadProject(path);
 
         ModuleInformation result = new ModuleInformation();
         result.setGroupId((String) projectMap.get(LEIN_MODULE_GROUP));

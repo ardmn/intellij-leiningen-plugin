@@ -26,34 +26,24 @@ h2. Compiling the source code
 * Grab the latest version from http://github.com/derkork/intellij-leiningen-plugin.
 * Setup an IntelliJ SDK
 ** I suggest using an IntelliJ Community Edition as SDK base, to ensure that the plugin will run on the Community Edition as well.
-* Create a _new project from scratch_ and add a *_Plugin Module_* which points at the root directory of the intellij-leiningen-plugin source.
-** When it asks for a Project SDK, point it at the Community Edition SDK you have just set up.
-** Once the project and module have been created:
-*** Add the _resources_ directory as a source root to the plugin module.
-*** Add the _test_ directory as a test root to the plugin module.
-* Setup the dependency on the leiningen interop library which is written in Clojure:
-** Using *_leiningen 2.0_* or higher, navigate on the command line to the _interop_ subdirectory
-*** Run 'lein uberjar' - this will generate a standalone jar file.
-*** Add this jar to the plugin module's dependency list
+* Create a new empty project: File->New Project, select Empty Project and select the directory where you left the code.
+* When it opens the Project Structure window, click + and select Import Module. Select leiningenplugin.iml.
+* Select Project SDK for the module, and in the Project tab select your SDK.
+* Open the Leiningen toolwindow, and click +. Select the project.clj.
+* In Settings->Compiler->Clojure Compiler set:
+** Compile Clojure files to no
+** Copy Clojure source files to yes
+* In Settings->Compiler:
+** If you have Use external build set, change the Resource pattern from !?*.clj to ?*.clj
 * Add a new Plugin Run Configuration to the project and tell it to use the classpath of your plugin module
 ** Run the plugin using the configuration you just created!
-
-h3. Adding the interop directory as a module.
-
-If you wish to add the interop module to the project do the following:
-* Using *_leiningen 2.0_* or higher, navigate on the command line to the _interop_ subdirectory
-** Run 'lein pom' - this will generate a pom.xml file.
-* Navigate to the pom.xml file in IDEA's project manager
-* Right click on the pom.xml - Select 'Add as Maven Project'
-** Maven plugin needs to be enabled for this
-** This will create a module named _interop_ in your project
-** Add this module as a module dependency to the plugin module.
 
 h3. Building the plugin distribution
 
 To build a deployable Jar file:
+
 * From the program menus, select _Build -> Prepare plugin-module [plugin-module-name] for Deployment_.
-** This will create a Jar file that you can deploy into your IntelliJ plugins folder.
+** This will create a Jar file that you can deploy using Plugins->Install plugin from disk.
 
 h2. Submitting patches
 

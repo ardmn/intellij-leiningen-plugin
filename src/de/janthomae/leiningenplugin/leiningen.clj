@@ -1,11 +1,8 @@
-(ns de.janthomae.leiningenplugin.leiningen.LeiningenAPI
+(ns de.janthomae.leiningenplugin.leiningen
   "This namespace provides our interop access point so that we can get into Clojure world from Java - basically so we can
   leverage the leiningen core library for introspection of project details."
   (:require [leiningen.core.project :as p]
-             [leiningen.core.classpath :as cp])
-  (:gen-class
-    :methods [#^{:static true}[loadProject [String] java.util.Map]
-              #^{:static true}[loadDependencies [String] java.util.List]]))
+             [leiningen.core.classpath :as cp]))
 
 (defn find-all-artifacts
   "Traverses a nested map of dependencies as given by leiningen.core.classpath/dependency-hierarchy
@@ -28,7 +25,7 @@
                {:keys [dependency file]} (meta %)]
             {:artifactid (name artifact) :version version :groupid (.getGroupId (.getArtifact dependency)) :scope (.getScope dependency) :dependency dependency :file file}))))
 
-(defn -loadProject
+(defn load-project
    "Map a Java Static Function call to the project/read function.
      args: prj-file-path - path to the project.clj file - appears to work with relative or absolute"
    [prj-file-path]
@@ -36,7 +33,7 @@
      (zipmap (map name (keys m)) (vals m))))
 
 
-(defn -loadDependencies
+(defn load-dependencies
   "Retrieve all of the dependencies (including transitive) which are in the :dependencies list in the project file.
      - args: prj-file-path - path to the project.clj file - appears to work with relative or absolute
      - Returns: A sequence of maps containing the following string keys:
