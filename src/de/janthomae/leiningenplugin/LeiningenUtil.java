@@ -66,6 +66,25 @@ public class LeiningenUtil {
         }
     }
 
+    public static void invokeAndWait(final Project p, final ModalityState state, final Runnable r) {
+        if (isNoBackgroundMode()) {
+            r.run();
+        }
+        else {
+            if (ApplicationManager.getApplication().isDispatchThread()) {
+                r.run();
+            }
+            else {
+                ApplicationManager.getApplication().invokeAndWait(new Runnable() {
+                    public void run() {
+                        if (p.isDisposed()) return;
+                        r.run();
+                    }
+                }, state);
+            }
+        }
+    }
+
     public static void runInBackground(final Project project, final Runnable runnable) {
         // This puts the downloading and refreshing on a background queue.  Now that lein can download
         // dependencies it will lock the UI unless it's put on a background thread.

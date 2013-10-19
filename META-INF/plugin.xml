@@ -127,6 +127,22 @@
                 icon="/general/add.png">
         </action>
 
+        <action id="Leiningen.AddManagedFile"
+                class="de.janthomae.leiningenplugin.navigator.AddManagedFileAction"
+                text="Add as Leiningen Project"
+                description="Add and import Leiningen project to the projects tree"
+                icon="AllIcons.General.Add">
+            <add-to-group group-id="EditorPopupMenu" />
+            <add-to-group group-id="ProjectViewPopupMenu" />
+        </action>
+
+        <action id="Leiningen.RemoveManagedFiles"
+                class="de.janthomae.leiningenplugin.navigator.RemoveManagedFilesAction"
+                text="Remove Projects"
+                description="Remove selected Leiningen projects from the project tree"
+                icon="AllIcons.General.Remove">
+        </action>
+
         <action id="Leiningen.RefreshProjects"
                 class="de.janthomae.leiningenplugin.navigator.RefreshProjectsAction"
                 text="Refresh Leiningen _Projects"
@@ -142,6 +158,7 @@
         <group id="Leiningen.NavigatorActionsToolbar">
             <reference id="Leiningen.RefreshProjects"/>
             <reference id="Leiningen.AddManagedFiles"/>
+            <reference id="Leiningen.RemoveManagedFiles"/>
             <separator/>
             <reference id="Leiningen.RunBuild"/>
             <separator/>

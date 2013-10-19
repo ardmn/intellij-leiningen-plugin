@@ -7,8 +7,6 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import de.janthomae.leiningenplugin.LeiningenDataKeys;
 import de.janthomae.leiningenplugin.project.LeiningenProject;
-import de.janthomae.leiningenplugin.run.LeiningenRunConfigurationType;
-import de.janthomae.leiningenplugin.run.LeiningenRunnerParameters;
 
 import java.util.List;
 
@@ -29,7 +27,7 @@ public class RunBuildAction extends AnAction implements DumbAware {
             return;
         }
 
-        LeiningenRunnerParameters params = new LeiningenRunnerParameters(goals, leiningenProject.getWorkingDir());
+        LeiningenRunnerParameters params = new LeiningenRunnerParameters(goals, leiningenProject.getWorkingDir().getPath());
         LeiningenRunConfigurationType.runConfiguration(project, params, anActionEvent.getDataContext());
     }
 }

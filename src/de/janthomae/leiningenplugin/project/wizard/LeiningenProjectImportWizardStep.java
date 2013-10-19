@@ -7,8 +7,7 @@ import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.ProjectImportWizardStep;
 import de.janthomae.leiningenplugin.module.forms.LeiningenModuleInformationForm;
-import de.janthomae.leiningenplugin.module.model.ModuleInformation;
-import de.janthomae.leiningenplugin.module.model.ModuleInformationUtils;
+import de.janthomae.leiningenplugin.project.LeiningenProject;
 import de.janthomae.leiningenplugin.project.LeiningenProjectBuilder;
 
 import javax.swing.*;
@@ -24,11 +23,9 @@ import javax.swing.*;
  */
 public class LeiningenProjectImportWizardStep extends ProjectImportWizardStep {
 
-    private final ModuleInformationUtils moduleInformationUtils;
-    private final String projectFile;
-    private ModuleInformation moduleInformation;
+    private final VirtualFile projectFile;
     private LeiningenModuleInformationForm moduleInformationForm;
-
+    private final LeiningenProject leiningenProject;
 
     /**
      * Initialize the wizard step with wizard context and the path of the project.clj file.
@@ -36,29 +33,22 @@ public class LeiningenProjectImportWizardStep extends ProjectImportWizardStep {
      * @param context The wizard context.
      * @param projectFile Absolute path to the project.clj file to import.
      */
-    public LeiningenProjectImportWizardStep(WizardContext context,String projectFile) {
+    public LeiningenProjectImportWizardStep(WizardContext context, String projectFile) {
         super(context);
-        this.projectFile = projectFile;
+        this.projectFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(projectFile);
+        leiningenProject = LeiningenProject.create(this.projectFile);
 
-        moduleInformationForm = new LeiningenModuleInformationForm(false);
-        this.moduleInformationUtils = new ModuleInformationUtils();
+        moduleInformationForm = new LeiningenModuleInformationForm();
     }
 
     @Override
     public boolean validate() throws ConfigurationException {
-
-        boolean result = true;
-
-        moduleInformationForm.getData(moduleInformation);
-
-        return result;
+        return true;
     }
 
     @Override
     public void updateStep() {
-        String path = FileUtil.toSystemDependentName(projectFile);
-        moduleInformation = moduleInformationUtils.fromProjectFile(path);
-        moduleInformationForm.setData(moduleInformation);
+        moduleInformationForm.setData(leiningenProject);
     }
 
     @Override
@@ -68,15 +58,11 @@ public class LeiningenProjectImportWizardStep extends ProjectImportWizardStep {
 
     @Override
     public void updateDataModel() {
-        moduleInformationForm.getData(moduleInformation);
-
         //Tell the builder where the projectFile is.
-        VirtualFile projectFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(moduleInformation.getProjectFilePath());
-        getBuilder().setProjectFile(projectFile);
+        getBuilder().setProjectFile(leiningenProject.getProjectFile());
 
         //Point to the parent directory so we can create the .idea directory.
-        VirtualFile parent = getBuilder().getProjectFile().getParent();
-        String parentDir = FileUtil.toSystemDependentName(parent.getCanonicalPath());
+        String parentDir = FileUtil.toSystemDependentName(leiningenProject.getWorkingDir().getCanonicalPath());
         getWizardContext().setProjectFileDirectory(parentDir);
     }
 

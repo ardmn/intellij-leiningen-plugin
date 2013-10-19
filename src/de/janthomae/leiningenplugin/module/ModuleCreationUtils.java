@@ -2,9 +2,11 @@ package de.janthomae.leiningenplugin.module;
 
 import clojure.lang.LazySeq;
 import com.intellij.ide.highlighter.ModuleFileType;
-import com.intellij.openapi.application.ReadAction;
-import com.intellij.openapi.application.Result;
-import com.intellij.openapi.application.WriteAction;
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notifications;
+import com.intellij.openapi.application.*;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ModifiableModuleModel;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
@@ -17,12 +19,15 @@ import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.*;
+import de.janthomae.leiningenplugin.project.LeiningenProject;
+import de.janthomae.leiningenplugin.project.LeiningenProjectsManager;
 import de.janthomae.leiningenplugin.utils.ClassPathUtils;
 import de.janthomae.leiningenplugin.utils.Interop;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +40,7 @@ import java.util.Map;
  * Class used to assist in creation an IDEA module.  Extracted out of the project creation for reusability and testing purposes.
  */
 public class ModuleCreationUtils {
+    public static final Logger log = Logger.getInstance(ModuleCreationUtils.class);
 
     public final static String LEIN_COMPILE_PATH = "compile-path";
     public final static String LEIN_RESOURCE_PATHS = "resource-paths";
@@ -44,6 +50,9 @@ public class ModuleCreationUtils {
     public final static String LEIN_PROJECT_NAME = "name";
     public final static String LEIN_PROJECT_VERSION = "version";
     public final static String LEIN_PROJECT_GROUP = "group";
+    public static final String LEIN_LIB_PREFIX = "Leiningen: ";
+    public static final String MAVEN_LIB_PREFIX = "Maven: ";
+
     /**
      * Default Constructor - intentionally side-effect free.
      */
@@ -163,7 +172,7 @@ public class ModuleCreationUtils {
      * @param module The module to obtain the root model for.
      * @return The root model of the module.
      */
-    public ModifiableRootModel getRootModel(final Module module) {
+    public static ModifiableRootModel getRootModel(final Module module) {
         return new ReadAction<ModifiableRootModel>() {
             protected void run(Result<ModifiableRootModel> result) throws Throwable {
                 result.setResult(ModuleRootManager.getInstance(module).getModifiableModel());
@@ -177,7 +186,7 @@ public class ModuleCreationUtils {
      * @param ideaProject The idea project.
      * @return The Model for the module manager.
      */
-    private ModifiableModuleModel createModuleManager(final Project ideaProject) {
+    public static ModifiableModuleModel createModuleManager(final Project ideaProject) {
         return new ReadAction<ModifiableModuleModel>() {
             protected void run(Result<ModifiableModuleModel> result) throws Throwable {
                 result.setResult(ModuleManager.getInstance(ideaProject).getModifiableModel());
@@ -188,25 +197,85 @@ public class ModuleCreationUtils {
     /**
      * Create or find the modules root model.
      * <p/>
-     * If there exists a module with a matching name, that will be returned.
+     * If there exists a suitable module, that will be returned.
      * <p/>
      * Otherwise, we'll create a new module and add it to the moduleManager.
      *
+     *
+     * @param ideaProject
      * @param moduleManager The module manager
-     * @param name          The name of the module
-     * @return The module's modifiable model
+     * @param name          The name of the module  @return The module's modifiable model
      */
-    public ModifiableRootModel createModule(ModifiableModuleModel moduleManager, String workingDir, String name) {
-        Module module = moduleManager.findModuleByName(name);
+    public Module createModule(Project ideaProject,
+                               ModifiableModuleModel moduleManager,
+                               VirtualFile projectFile,
+                               String name) {
+        Module module = findModule(ideaProject, projectFile);
 
         if (module == null) {
             // oh-kay we don't have a module yet.
+            String workingDir = projectFile.getParent().getPath();
             String filePath = workingDir + File.separator + FileUtil.sanitizeFileName(name) + ModuleFileType.DOT_DEFAULT_EXTENSION;
             module = moduleManager.newModule(filePath, StdModuleTypes.JAVA.getId());
+            module.setOption(LeiningenProjectsManager.LEIN_PROPERTY_NAME, "true");
+            module.clearOption(LeiningenProjectsManager.MAVEN_PROPERTY_NAME);
         }
 
-        return getRootModel(module);
+        return module;
     }
+
+    public static Module findModule(Project project, VirtualFile projectFile) {
+        ModuleManager moduleManager = ModuleManager.getInstance(project);
+        VirtualFile projectDir = projectFile.getParent();
+        for (Module module : moduleManager.getModules()) {
+            ModuleRootManager rootManager = ModuleRootManager.getInstance(module);
+            for (VirtualFile contentRoot : rootManager.getContentRoots()) {
+                if (contentRoot.equals(projectDir)) {
+                    return module;
+                }
+            }
+        }
+        return null;
+    }
+
+    // Copied from MavenProjectsManager - don't want to add a Maven dependency just for this
+    public static boolean isMavenizedModule(final Module m) {
+        return hasProperty(m, LeiningenProjectsManager.MAVEN_PROPERTY_NAME);
+    }
+
+    public static boolean isLeiningenModule(final Module m) {
+        return hasProperty(m, LeiningenProjectsManager.LEIN_PROPERTY_NAME);
+    }
+
+    private static boolean hasProperty(Module m, String name) {
+        AccessToken accessToken = ApplicationManager.getApplication().acquireReadActionLock();
+        try {
+            return "true".equals(m.getOptionValue(name));
+        }
+        finally {
+            accessToken.finish();
+        }
+    }
+
+    public static boolean validateModule(final Project project, VirtualFile leinProjectFile) {
+        final Module module = findModule(project, leinProjectFile);
+        if (module == null) {
+            // We can always create a module
+            return true;
+        }
+
+        if (isMavenizedModule(module)) {
+            String text = "Module <b>" + module.getName() + "</b> is managed by Maven and cannot be managed by " +
+                    " Leiningen at the same time.";
+            Notification notification = new Notification("Leiningen", "Maven module detected", text, NotificationType.WARNING);
+            Notifications.Bus.notify(notification, project);
+
+            return false;
+        }
+
+        return true;
+    }
+
 
     /**
      * Initialize the source, resources, test, and compile paths on module.
@@ -236,36 +305,102 @@ public class ModuleCreationUtils {
      * Initialize the dependencies for the module.  This will add any dependencies to the list of project libraries and
      * then add those libraries to the module via Order Entries.
      *
-     *
-     * @param module           The module to update.
+     * @param allModules All modules in the project
+     * @param module The module we're updating
+     * @param moduleRootModel The modifiable root model of our module.
      * @param projectLibraries The list of project libraries.
-     * @param dependencyMaps The list of maps containing the dependency information.
-     * @return The set of libraries that were created.
+     * @param dependencyMaps The list of maps containing the dependency information.    @return The set of libraries that were created.
      */
-    private List<LibraryInfo> initializeDependencies(ModifiableRootModel module, LibraryTable.ModifiableModel projectLibraries, List dependencyMaps) {
+    private List<LibraryInfo> initializeDependencies(Project project, Module module, ModifiableRootModel moduleRootModel, LibraryTable.ModifiableModel projectLibraries, List dependencyMaps) {
 
-        //Reset them module's library order entries here - this actually happens in org.jetbrains.idea.maven.importing.MavenRootModelAdapter.initOrderEntries()
-        for (OrderEntry orderEntry : module.getOrderEntries()) {
-            if (orderEntry instanceof LibraryOrderEntry) {
-                //Remove any library from the project list so it can be refreshed.
-              Library library = ((LibraryOrderEntry) orderEntry).getLibrary();
-              if (library != null) {
-                projectLibraries.removeLibrary(library);
-              }
-                module.removeOrderEntry(orderEntry);
-            }
-        }
+        tidyDependencies(project, module, moduleRootModel, projectLibraries, true);
 
         //Add the dependencies to the projects's library table - this is how maven does it - but we could put the libraries directly on the module - but maybe it's better if we share a lot of libraries between modules.
         List<LibraryInfo> libraries = createLibraries(projectLibraries, dependencyMaps);
 
         //Now add the libraries to the modules.
         for (LibraryInfo entry : libraries) {
-            module.addLibraryEntry(entry.library).setScope(entry.dependencyScope);
+            moduleRootModel.addLibraryEntry(entry.library).setScope(entry.dependencyScope);
         }
         return libraries;
     }
 
+    public static void tidyDependencies(Project project, VirtualFile projectFile, boolean deleteMavenLibs) {
+        Module module = findModule(project, projectFile);
+        if (module != null) {
+            final ModifiableRootModel moduleRootModel = getRootModel(module);
+            final LibraryTable.ModifiableModel libraryTable = ProjectLibraryTable.getInstance(project).getModifiableModel();
+            tidyDependencies(project, module, moduleRootModel, libraryTable, deleteMavenLibs);
+
+            new WriteAction() {
+                @Override
+                protected void run(Result result) throws Throwable {
+                    moduleRootModel.commit();
+                    libraryTable.commit();
+                }
+            }.execute();
+        }
+    }
+
+    public static void tidyDependencies(Project project,
+                                        Module module,
+                                        ModifiableRootModel moduleRootModel,
+                                        LibraryTable.ModifiableModel projectLibraries,
+                                        boolean deleteMavenLibs) {
+        Module[] allModules = ModuleManager.getInstance(project).getModules();
+
+        //Reset the module's library order entries here - this actually happens in org.jetbrains.idea.maven.importing.MavenRootModelAdapter.initOrderEntries()
+        for (OrderEntry orderEntry : moduleRootModel.getOrderEntries()) {
+            if (orderEntry instanceof LibraryOrderEntry) {
+                //Remove any unused library from the project list
+                Library library = ((LibraryOrderEntry) orderEntry).getLibrary();
+                if (isLeiningenLibrary(library)) {
+                    boolean keep = false;
+                    for (Module each : allModules) {
+                        if (!isSameModule(module, each) && moduleLibraries(each).contains(library)) {
+                            keep = true;
+                        }
+                    }
+                    if (!keep) {
+                        projectLibraries.removeLibrary(library);
+                    }
+                    moduleRootModel.removeOrderEntry(orderEntry);
+                } else if (deleteMavenLibs && isMavenLibrary(library)) {
+                    // Just remove the order entry, don't mess with Maven's junk
+                    moduleRootModel.removeOrderEntry(orderEntry);
+                } else if (library == null) {
+                    // Remove any invalid ones too (probably old Maven entries)
+                    moduleRootModel.removeOrderEntry(orderEntry);
+                }
+            }
+        }
+    }
+
+    private static boolean isSameModule(Module module, Module each) {
+        return each.getModuleFile().equals(module.getModuleFile());
+    }
+
+    private static boolean isLeiningenLibrary(Library library) {
+        return library != null &&
+                library.getName().startsWith(LEIN_LIB_PREFIX);
+    }
+
+    private static boolean isMavenLibrary(Library library) {
+        return library != null &&
+                library.getName().startsWith(MAVEN_LIB_PREFIX);
+    }
+
+    private static Collection<Library> moduleLibraries(Module module) {
+        final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
+        Collection<Library> ret = new ArrayList<Library>();
+        for (OrderEntry orderEntry : moduleRootManager.getOrderEntries()) {
+            if (orderEntry instanceof LibraryOrderEntry) {
+                Library library = ((LibraryOrderEntry) orderEntry).getLibrary();
+                ret.add(library);
+            }
+        }
+        return ret;
+    }
 
     /**
      * This method imports a leiningen module from a leiningen project file and imports it into the idea project.
@@ -279,32 +414,34 @@ public class ModuleCreationUtils {
      * Since a lot of the components are persisted in files, commit() updates these files as well.  Therefore you need
      * to make any calls to commit() from within a WriteAction.
      *
+     *
      * @param ideaProject The IDEA project to add the leiningen module to.
-     * @param leinProjectFile  The leiningen project file
-     * @return The leiningen project map.
+     * @param leinProject  The leiningen project
      */
-    public Map importModule(Project ideaProject, VirtualFile leinProjectFile) {
+    public void importModule(Project ideaProject, LeiningenProject leinProject) {
 
         ClassPathUtils.getInstance().switchToPluginClassLoader();
-        Map projectMap = Interop.loadProject(leinProjectFile.getPath());
+        Map projectMap = leinProject.getProjectMap();
         String name = (String) projectMap.get(LEIN_PROJECT_NAME);
 
         final ModifiableModuleModel moduleManager = createModuleManager(ideaProject);
-        final ModifiableRootModel module = createModule(moduleManager, leinProjectFile.getParent().getPath(), name);
-        initializeModulePaths(projectMap, module, leinProjectFile.getParent());
+        final Module module = createModule(ideaProject, moduleManager, leinProject.getVirtualFile(), name);
+        final ModifiableRootModel moduleRootModel = getRootModel(module);
+        initializeModulePaths(projectMap, moduleRootModel, leinProject.getVirtualFile().getParent());
 
         ProjectRootManagerEx rootManager = ProjectRootManagerEx.getInstanceEx(ideaProject);
-        module.setSdk(rootManager.getProjectSdk());
+        moduleRootModel.setSdk(rootManager.getProjectSdk());
 
         //Setup the dependencies
         // Based loosely on org.jetbrains.idea.maven.importing.MavenRootModelAdapter#addLibraryDependency
 
         //We could use the module table here, but then the libraries wouldn't be shared across modules.
-        final LibraryTable.ModifiableModel projectLibraries = ProjectLibraryTable.getInstance(ideaProject).getModifiableModel();
+        final LibraryTable.ModifiableModel libraryTable = ProjectLibraryTable.getInstance(ideaProject).getModifiableModel();
 
         //Load all the dependencies from the project file
-        List dependencyMaps = Interop.loadDependencies(leinProjectFile.getCanonicalPath());
-        final List<LibraryInfo> dependencies = initializeDependencies(module, projectLibraries,dependencyMaps);
+        List dependencyMaps = Interop.loadDependencies(leinProject.getVirtualFile().getCanonicalPath());
+        final List<LibraryInfo> dependencies =
+                initializeDependencies(ideaProject, module, moduleRootModel, libraryTable, dependencyMaps);
 
         new WriteAction() {
             @Override
@@ -315,17 +452,15 @@ public class ModuleCreationUtils {
                 }
 
                 //Save the project libraries
-                projectLibraries.commit();
+                libraryTable.commit();
 
                 //Save the module itself to the module file.
-                module.commit();
+                moduleRootModel.commit();
 
                 //Save the list of modules that are in this project to the IDEA project file
                 moduleManager.commit();
             }
         }.execute();
-
-        return projectMap;
     }
 
     /**
@@ -340,12 +475,16 @@ public class ModuleCreationUtils {
     private List<LibraryInfo> createLibraries(LibraryTable.ModifiableModel libraryTable, List dependencyMaps) {
 
         List<LibraryInfo> result = new ArrayList<LibraryInfo>();
-        final String LEIN_LIB_PREFIX = "Leiningen";
         for (Object obj : dependencyMaps) {
             Map dependency = (Map) obj;
             //Check if the library already exists
-            String libraryName = LEIN_LIB_PREFIX + ": " + dependency.get("groupid") + ":" +
-                    dependency.get("artifactid") + ":" + dependency.get("version");
+            Object groupId = dependency.get("groupid");
+            Object artifactId = dependency.get("artifactid");
+            Object version = dependency.get("version");
+            String libraryName = LEIN_LIB_PREFIX +
+                    (!groupId.equals(artifactId) ? groupId + "/" : "")  +
+                    artifactId + ":" +
+                    version;
             Library library = libraryTable.getLibraryByName(libraryName);
             if (library == null) {
                 library = libraryTable.createLibrary(libraryName);

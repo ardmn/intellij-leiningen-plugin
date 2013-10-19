@@ -10,8 +10,10 @@ import com.intellij.openapi.vfs.VirtualFileManager;
 import de.janthomae.leiningenplugin.LeiningenConstants;
 import de.janthomae.leiningenplugin.LeiningenUtil;
 import de.janthomae.leiningenplugin.SimpleProjectComponent;
+import de.janthomae.leiningenplugin.module.ModuleCreationUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -23,6 +25,16 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
     private List<LeiningenProject> leiningenProjects = new ArrayList<LeiningenProject>();
     private LeiningenProjectsManagerWatcher watcher;
     private List<LeiningenProjectsManagerListener> listeners = new ArrayList<LeiningenProjectsManagerListener>();
+
+    public static final String LEIN_PROPERTY_NAME =
+            "de.janthomae.leiningenplugin.project.LeiningenProjectsManager.isLeinModule";
+
+    /**
+     * Don't want to add a dependency on Maven just for this
+     * @see MavenProjectsManager.isMavenizedModule
+     */
+    public static final String MAVEN_PROPERTY_NAME =
+            "org.jetbrains.idea.maven.project.MavenProjectsManager.isMavenModule";
 
     public static LeiningenProjectsManager getInstance(Project p) {
         return p.getComponent(LeiningenProjectsManager.class);
@@ -70,19 +82,36 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
         return !leiningenProjects.isEmpty();
     }
 
-    public List<Module> importLeiningenProject(final VirtualFile projectFile, final Project project) {
-        List<Module> result = new ArrayList<Module>();
+    /**
+     * Import a new Leiningen project. This is called from the two Add Project actions, and from
+     * the import project wizard.
+     * @param projectFile the project.clj
+     * @param project the IntelliJ project
+     * @return
+     */
+    public List<Module> importLeiningenProjects(final Collection<VirtualFile> projectFiles, final Project project) {
+        final List<Module> result = new ArrayList<Module>();
 
         LeiningenUtil.runInBackground(project, new Runnable() {
             @Override
             public void run() {
                 try {
-                    LeiningenProject leiningenProject = LeiningenProject.create(projectFile);
-                    /** Side effect - adds to the project's module list */
-                    leiningenProject.reimport(project);
+                    for (VirtualFile projectFile : projectFiles) {
+                        if (ModuleCreationUtils.validateModule(project, projectFile)) {
+                            LeiningenProject leiningenProject = getProjectByProjectFile(projectFile);
+                            if (leiningenProject == null) {
+                                leiningenProject = LeiningenProject.create(projectFile);
+                                addLeiningenProject(leiningenProject);
+                            }
 
-                    if (!hasProject(leiningenProject)) {
-                        addLeiningenProject(leiningenProject);
+                            /** Side effect - adds to the project's module list */
+                            leiningenProject.reimport(project);
+
+                            Module newModule = ModuleCreationUtils.findModule(project, projectFile);
+                            if (newModule != null) {
+                                result.add(newModule);
+                            }
+                        }
                     }
                 } catch (LeiningenProjectException ignore) {
                     // Just do nothing for now
@@ -103,18 +132,18 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
     }
 
     /**
-     * Determine if file represents a leiningen project that we're already managing.
+     * Finds the LeiningenProject whose project file is the passed file.
      *
      * @param file The virtual file to check.
-     * @return true if we're managing this file already, false if not.
+     * @return the project if we're managing this file already, null if not.
      */
-    public boolean isManagedFile(VirtualFile file) {
-        for (LeiningenProject myLeiningenProject : leiningenProjects) {
-            if (myLeiningenProject.getVirtualFile().equals(file)) {
-                return true;
+    public LeiningenProject getProjectByProjectFile(VirtualFile file) {
+        for (LeiningenProject project : leiningenProjects) {
+            if (project.getVirtualFile().equals(file)) {
+                return project;
             }
         }
-        return false;
+        return null;
     }
 
     public void removeProjectsManagerListener(LeiningenProjectsManagerListener listener) {
@@ -122,7 +151,7 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
     }
 
     public List<LeiningenProject> getLeiningenProjects() {
-        return leiningenProjects;
+        return new ArrayList<LeiningenProject>(leiningenProjects);
     }
 
 //    private void findProjectFiles() {
@@ -133,7 +162,7 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
 //        }
 //    }
 
-    private void removeLeiningenProject(LeiningenProject leiningenProject) {
+    public void removeLeiningenProject(LeiningenProject leiningenProject) {
         leiningenProjects.remove(leiningenProject);
         notifyListeners();
     }
@@ -152,27 +181,29 @@ public class LeiningenProjectsManager extends  SimpleProjectComponent implements
         return state;
     }
 
-    public void loadState(LeiningenProjectsManagerState leiningenProjectsManagerState) {
-        final List<LeiningenProject> result = new ArrayList<LeiningenProject>();
-        for (String projectFile : leiningenProjectsManagerState.projectFiles) {
-            VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(projectFile);
-            if ( vf != null ) {
-                LeiningenProject forReimport = LeiningenProject.create(vf);
-                result.add(forReimport);
-            }
-        }
+    public void loadState(final LeiningenProjectsManagerState leiningenProjectsManagerState) {
         LeiningenUtil.runWhenInitialized(myProject, new Runnable() {
             public void run() {
                 LeiningenUtil.runInBackground(myProject, new Runnable() {
                     @Override
                     public void run() {
-                        for (LeiningenProject leiningenProject : result) {
+                        for (String projectFile : leiningenProjectsManagerState.projectFiles) {
                             try {
-                                leiningenProject.reimport(myProject);
+                                VirtualFile vf = VirtualFileManager.getInstance().findFileByUrl(projectFile);
+                                Collection<LeiningenProject> toImport = new ArrayList<LeiningenProject>();
+                                if (ModuleCreationUtils.validateModule(myProject, vf)) {
+                                    LeiningenProject leiningenProject = LeiningenProject.create(vf);
+                                    toImport.add(leiningenProject);
+                                    addLeiningenProject(leiningenProject);
+                                } else {
+                                    ModuleCreationUtils.tidyDependencies(myProject, vf, false);
+                                }
+                                for (LeiningenProject leiningenProject : toImport) {
+                                    leiningenProject.reimport(myProject);
+                                }
                             } catch (LeiningenProjectException ignore) {
                                 // Do nothing for now
                             }
-                            addLeiningenProject(leiningenProject);
                         }
                     }
                 });
