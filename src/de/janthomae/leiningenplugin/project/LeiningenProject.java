@@ -3,7 +3,6 @@ package de.janthomae.leiningenplugin.project;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import de.janthomae.leiningenplugin.module.ModuleCreationUtils;
-import de.janthomae.leiningenplugin.utils.ClassPathUtils;
 import de.janthomae.leiningenplugin.utils.Interop;
 
 import java.util.Map;
@@ -16,49 +15,70 @@ import java.util.Map;
  * @version $Id:$
  */
 public class LeiningenProject {
-    private final VirtualFile leinProjectFile;
-
+    private final VirtualFile projectFile;
+    private Map projectMap;
     private String name;
-    private String namespace;
+    private String group;
     private String version;
 
-    public static LeiningenProject create(VirtualFile leinProjectFile) {
-        return new LeiningenProject(leinProjectFile);
+    public static LeiningenProject create(VirtualFile projectFile) {
+        return new LeiningenProject(projectFile);
     }
 
-    private LeiningenProject(VirtualFile leinProjectFile) {
-        this.leinProjectFile = leinProjectFile;
+    private LeiningenProject(VirtualFile projectFile) {
+        this.projectFile = projectFile;
+        reload();
     }
 
-    public String getWorkingDir() {
-        return leinProjectFile.getParent().getPath();
+    private void reload() {
+        projectMap = Interop.loadProject(projectFile.getPath());
+        name = (String) projectMap.get(ModuleCreationUtils.LEIN_PROJECT_NAME);
+        group = (String) projectMap.get(ModuleCreationUtils.LEIN_PROJECT_GROUP);
+        version = (String) projectMap.get(ModuleCreationUtils.LEIN_PROJECT_VERSION);
+    }
+
+    public VirtualFile getWorkingDir() {
+        return projectFile.getParent();
     }
 
 
     public VirtualFile getVirtualFile() {
-        return leinProjectFile;
-    }
-
-    public static String[] nameAndVersionFromProjectFile(VirtualFile projectFile) {
-        ClassPathUtils.getInstance().switchToPluginClassLoader();
-        Map map = Interop.loadProject(projectFile.getPath());
-        return new String[]{(String) map.get(ModuleCreationUtils.LEIN_PROJECT_NAME),
-                (String) map.get(ModuleCreationUtils.LEIN_PROJECT_VERSION)};
+        return projectFile;
     }
 
     public String getDisplayName() {
-        return (namespace != null ? namespace + "/" : "") + name + (version != null ? ":" + version : "");
+        return (group != null && !group.equals(name) ? group + "/" : "") + name + (version != null ? ":" + version : "");
+    }
+
+    public Map getProjectMap() {
+        return projectMap;
+    }
+
+    public VirtualFile getProjectFile() {
+        return projectFile;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getGroup() {
+        return group;
+    }
+
+    public String getVersion() {
+        return version;
     }
 
     @Override
     public boolean equals(Object obj) {
         return obj != null && obj instanceof LeiningenProject &&
-                ((LeiningenProject) obj).leinProjectFile.equals(leinProjectFile);
+                ((LeiningenProject) obj).projectFile.equals(projectFile);
     }
 
     @Override
     public int hashCode() {
-        return leinProjectFile.getPath().hashCode();
+        return projectFile.getPath().hashCode();
     }
 
     /**
@@ -73,12 +93,7 @@ public class LeiningenProject {
     public void reimport(final Project ideaProject) throws LeiningenProjectException {
         //Reload the lein project file
         ModuleCreationUtils mcu = new ModuleCreationUtils();
-
-        //Update the module - eventually we can have multiple modules here that the project maintains.
-        Map result = mcu.importModule(ideaProject, leinProjectFile);
-
-        name = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_NAME);
-        namespace = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_GROUP);
-        version = (String) result.get(ModuleCreationUtils.LEIN_PROJECT_VERSION);
+        reload();
+        mcu.importModule(ideaProject, this);
     }
 }

@@ -10,6 +10,7 @@ import com.intellij.projectImport.ProjectImportBuilder;
 import de.janthomae.leiningenplugin.LeiningenIcons;
 
 import javax.swing.*;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -57,7 +58,7 @@ public class LeiningenProjectBuilder extends ProjectImportBuilder<LeiningenProje
                                ModulesProvider modulesProvider, ModifiableArtifactModel modifiableArtifactModel) {
 
         LeiningenProjectsManager manager = LeiningenProjectsManager.getInstance(project);
-        return manager.importLeiningenProject(getProjectFile(), project);
+        return manager.importLeiningenProjects(Collections.singleton(getProjectFile()), project);
     }
 
     public void setProjectFile(VirtualFile projectFile) {
@@ -66,9 +67,5 @@ public class LeiningenProjectBuilder extends ProjectImportBuilder<LeiningenProje
 
     public VirtualFile getProjectFile() {
         return projectFile;
-    }
-
-    public String getSuggestedProjectName() {
-        return LeiningenProject.nameAndVersionFromProjectFile(getProjectFile())[0];
     }
 }

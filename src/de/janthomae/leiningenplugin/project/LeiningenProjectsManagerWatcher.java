@@ -7,7 +7,6 @@ import com.intellij.openapi.roots.ModuleRootListener;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
-import com.intellij.openapi.vfs.newvfs.events.VFileCreateEvent;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.update.MergingUpdateQueue;
@@ -64,14 +63,14 @@ public class LeiningenProjectsManagerWatcher {
 //                            }
 //                        }
 //                    }
-                    if (vFileEvent instanceof VFileCreateEvent) {
-                        if (isRelevant(vFileEvent.getPath())) {
-                            manager.importLeiningenProject(
-                                    vFileEvent.getFileSystem().findFileByPath(vFileEvent.getPath()),
-                                    project
-                            );
-                        }
-                    }
+//                    if (vFileEvent instanceof VFileCreateEvent) {
+//                        if (isRelevant(vFileEvent.getPath())) {
+//                            manager.importLeiningenProjects(
+//                                    vFileEvent.getFileSystem().findFileByPath(vFileEvent.getPath()),
+//                                    project
+//                            );
+//                        }
+//                    }
                 }
             }
 

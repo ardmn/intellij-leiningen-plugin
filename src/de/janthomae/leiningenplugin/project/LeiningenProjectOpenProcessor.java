@@ -27,7 +27,8 @@ public class LeiningenProjectOpenProcessor extends ProjectOpenProcessorBase {
 
     public boolean doQuickImport(VirtualFile file, WizardContext wizardContext) {
         getBuilder().setProjectFile(file);
-        wizardContext.setProjectName(getBuilder().getSuggestedProjectName());
+        LeiningenProject leiningenProject = LeiningenProject.create(file);
+        wizardContext.setProjectName(leiningenProject.getDisplayName());
         return true;
     }
 }

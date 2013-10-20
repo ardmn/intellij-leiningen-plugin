@@ -10,6 +10,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import de.janthomae.leiningenplugin.project.LeiningenProjectsManager;
 
+import java.util.Arrays;
+
 /**
  * Action to add a leiningen project file to the IDEA project.
  *
@@ -25,7 +27,7 @@ public class AddManagedFilesAction extends AnAction {
         FileChooserDescriptor leinProjectFileDescriptor = new FileChooserDescriptor(true, false, false, false, false, true) {
             @Override
             public boolean isFileSelectable(VirtualFile file) {
-                return super.isFileSelectable(file) && !manager.isManagedFile(file);
+                return super.isFileSelectable(file) && (manager.getProjectByProjectFile(file) == null);
             }
 
             @Override
@@ -42,8 +44,6 @@ public class AddManagedFilesAction extends AnAction {
         VirtualFile[] files = dialog.choose(fileToSelect,ideaProject);
         if (files.length == 0) return;
 
-        for (VirtualFile file : files) {
-            manager.importLeiningenProject(file, ideaProject);
-        }
+        manager.importLeiningenProjects(Arrays.asList(files), ideaProject);
     }
 }
